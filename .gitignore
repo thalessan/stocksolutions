@@ -1,3 +1,8 @@
 # graphify outputs (graphs are rebuildable; only commit what you intend to share)
 graphify-out/
 web/wp-content/graphify-out/
+
+# caches/arquivos gerados pelo WordPress/Avada em runtime
+web/wp-content/uploads/fusion-scripts/
+web/wp-content/uploads/fusion-styles/
+web/wp-content/debug.log

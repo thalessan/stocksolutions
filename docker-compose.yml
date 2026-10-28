@@ -1,0 +1,61 @@
+# Ambiente local do site Stock Solutions (WordPress 6.9 + Avada).
+# Uso: docker compose up -d  ->  http://localhost:8080
+services:
+  db:
+    image: mysql:5.7
+    platform: linux/amd64
+    container_name: stck_db
+    restart: unless-stopped
+    command: --max_allowed_packet=64M --sql-mode=NO_ENGINE_SUBSTITUTION
+    environment:
+      MYSQL_DATABASE: stcksolut2
+      MYSQL_USER: wplocal
+      MYSQL_PASSWORD: wplocal
+      MYSQL_ROOT_PASSWORD: rootlocal
+    volumes:
+      - ./docker/db/01-dump.sql:/docker-entrypoint-initdb.d/10-dump.sql:ro
+      - stck_dbdata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootlocal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wordpress:
+    build: ./docker/wordpress
+    container_name: stck_wp
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WP_DB_HOST: db
+      WP_DB_NAME: stcksolut2
+      WP_DB_USER: wplocal
+      WP_DB_PASSWORD: wplocal
+      WP_HOME: http://localhost:8080
+      WP_SITEURL: http://localhost:8080
+      WP_DEBUG: "true"
+      WP_DEBUG_LOG: "true"
+    volumes:
+      - ./web:/var/www/html
+    ports:
+      - "8080:80"
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: stck_pma
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_USER: wplocal
+      PMA_PASSWORD: wplocal
+    ports:
+      - "8081:80"
+
+volumes:
+  stck_dbdata:
