@@ -2401,12 +2401,16 @@ class WP_Query {
 		}
 
 		if ( ! empty( $query_vars['author__not_in'] ) ) {
-			if ( is_array( $query_vars['author__not_in'] ) ) {
-				$query_vars['author__not_in'] = array_unique( array_map( 'absint', $query_vars['author__not_in'] ) );
-				sort( $query_vars['author__not_in'] );
+			$author__not_in_id_list = wp_parse_id_list( $query_vars['author__not_in'] );
+			if ( count( $author__not_in_id_list ) > 0 ) {
+				sort( $author__not_in_id_list );
+				$where .= sprintf(
+					" AND {$wpdb->posts}.post_author NOT IN (%s) ",
+					implode( ',', $author__not_in_id_list )
+				);
+				/** Update the query var for stable cache key generation in {@see self::generate_cache_key()}. */
+				$query_vars['author__not_in'] = $author__not_in_id_list;
 			}
-			$author__not_in = implode( ',', (array) $query_vars['author__not_in'] );
-			$where         .= " AND {$wpdb->posts}.post_author NOT IN ($author__not_in) ";
 		} elseif ( ! empty( $query_vars['author__in'] ) ) {
 			if ( is_array( $query_vars['author__in'] ) ) {
 				$query_vars['author__in'] = array_unique( array_map( 'absint', $query_vars['author__in'] ) );
@@ -2815,11 +2819,11 @@ class WP_Query {
 		if ( $this->is_comment_feed && ! $this->is_singular ) {
 			if ( $this->is_archive || $this->is_search ) {
 				$cjoin    = "JOIN {$wpdb->posts} ON ( {$wpdb->comments}.comment_post_ID = {$wpdb->posts}.ID ) $join ";
-				$cwhere   = "WHERE comment_approved = '1' $where";
+				$cwhere   = "WHERE comment_approved = '1' AND {$wpdb->comments}.comment_type != 'note' $where";
 				$cgroupby = "{$wpdb->comments}.comment_id";
 			} else { // Other non-singular, e.g. front.
 				$cjoin    = "JOIN {$wpdb->posts} ON ( {$wpdb->comments}.comment_post_ID = {$wpdb->posts}.ID )";
-				$cwhere   = "WHERE ( post_status = 'publish' OR ( post_status = 'inherit' AND post_type = 'attachment' ) ) AND comment_approved = '1'";
+				$cwhere   = "WHERE ( post_status = 'publish' OR ( post_status = 'inherit' AND post_type = 'attachment' ) ) AND comment_approved = '1' AND {$wpdb->comments}.comment_type != 'note'";
 				$cgroupby = '';
 			}
 
@@ -3472,43 +3476,6 @@ class WP_Query {
 			$this->posts = apply_filters_ref_array( 'posts_results', array( $this->posts, &$this ) );
 		}
 
-		if ( ! empty( $this->posts ) && $this->is_comment_feed && $this->is_singular ) {
-			/** This filter is documented in wp-includes/query.php */
-			$cjoin = apply_filters_ref_array( 'comment_feed_join', array( '', &$this ) );
-
-			/** This filter is documented in wp-includes/query.php */
-			$cwhere = apply_filters_ref_array( 'comment_feed_where', array( "WHERE comment_post_ID = '{$this->posts[0]->ID}' AND comment_approved = '1'", &$this ) );
-
-			/** This filter is documented in wp-includes/query.php */
-			$cgroupby = apply_filters_ref_array( 'comment_feed_groupby', array( '', &$this ) );
-			$cgroupby = ( ! empty( $cgroupby ) ) ? 'GROUP BY ' . $cgroupby : '';
-
-			/** This filter is documented in wp-includes/query.php */
-			$corderby = apply_filters_ref_array( 'comment_feed_orderby', array( 'comment_date_gmt DESC', &$this ) );
-			$corderby = ( ! empty( $corderby ) ) ? 'ORDER BY ' . $corderby : '';
-
-			/** This filter is documented in wp-includes/query.php */
-			$climits = apply_filters_ref_array( 'comment_feed_limits', array( 'LIMIT ' . get_option( 'posts_per_rss' ), &$this ) );
-
-			$comments_request = "SELECT {$wpdb->comments}.comment_ID FROM {$wpdb->comments} $cjoin $cwhere $cgroupby $corderby $climits";
-
-			$comment_key          = md5( $comments_request );
-			$comment_last_changed = wp_cache_get_last_changed( 'comment' );
-
-			$comment_cache_key = "comment_feed:$comment_key";
-			$comment_ids       = wp_cache_get_salted( $comment_cache_key, 'comment-queries', $comment_last_changed );
-			if ( false === $comment_ids ) {
-				$comment_ids = $wpdb->get_col( $comments_request );
-				wp_cache_set_salted( $comment_cache_key, $comment_ids, 'comment-queries', $comment_last_changed );
-			}
-			_prime_comment_caches( $comment_ids );
-
-			// Convert to WP_Comment.
-			/** @var WP_Comment[] */
-			$this->comments      = array_map( 'get_comment', $comment_ids );
-			$this->comment_count = count( $this->comments );
-		}
-
 		// Check post status to determine if post should be displayed.
 		if ( ! empty( $this->posts ) && ( $this->is_single || $this->is_page ) ) {
 			$status = get_post_status( $this->posts[0] );
@@ -3565,6 +3532,43 @@ class WP_Query {
 				 */
 				$this->posts[0] = get_post( apply_filters_ref_array( 'the_preview', array( $this->posts[0], &$this ) ) );
 			}
+		}
+
+		if ( ! empty( $this->posts ) && $this->is_comment_feed && $this->is_singular ) {
+			/** This filter is documented in wp-includes/query.php */
+			$cjoin = apply_filters_ref_array( 'comment_feed_join', array( '', &$this ) );
+
+			/** This filter is documented in wp-includes/query.php */
+			$cwhere = apply_filters_ref_array( 'comment_feed_where', array( "WHERE comment_post_ID = '{$this->posts[0]->ID}' AND comment_approved = '1' AND {$wpdb->comments}.comment_type != 'note'", &$this ) );
+
+			/** This filter is documented in wp-includes/query.php */
+			$cgroupby = apply_filters_ref_array( 'comment_feed_groupby', array( '', &$this ) );
+			$cgroupby = ( ! empty( $cgroupby ) ) ? 'GROUP BY ' . $cgroupby : '';
+
+			/** This filter is documented in wp-includes/query.php */
+			$corderby = apply_filters_ref_array( 'comment_feed_orderby', array( 'comment_date_gmt DESC', &$this ) );
+			$corderby = ( ! empty( $corderby ) ) ? 'ORDER BY ' . $corderby : '';
+
+			/** This filter is documented in wp-includes/query.php */
+			$climits = apply_filters_ref_array( 'comment_feed_limits', array( 'LIMIT ' . get_option( 'posts_per_rss' ), &$this ) );
+
+			$comments_request = "SELECT {$wpdb->comments}.comment_ID FROM {$wpdb->comments} $cjoin $cwhere $cgroupby $corderby $climits";
+
+			$comment_key          = md5( $comments_request );
+			$comment_last_changed = wp_cache_get_last_changed( 'comment' );
+
+			$comment_cache_key = "comment_feed:$comment_key";
+			$comment_ids       = wp_cache_get_salted( $comment_cache_key, 'comment-queries', $comment_last_changed );
+			if ( false === $comment_ids ) {
+				$comment_ids = $wpdb->get_col( $comments_request );
+				wp_cache_set_salted( $comment_cache_key, $comment_ids, 'comment-queries', $comment_last_changed );
+			}
+			_prime_comment_caches( $comment_ids );
+
+			// Convert to WP_Comment.
+			/** @var WP_Comment[] */
+			$this->comments      = array_map( 'get_comment', $comment_ids );
+			$this->comment_count = count( $this->comments );
 		}
 
 		// Put sticky posts at the top of the posts array.

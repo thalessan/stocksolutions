@@ -720,7 +720,7 @@ const {
   populateServerData,
   batch,
   routerRegions,
-  cloneElement,
+  h: createElement,
   navigationSignal
 } = (0,interactivity_namespaceObject.privateApis)(
   "I acknowledge that using private APIs means my theme or plugin will inevitably break in the next version of WordPress."
@@ -751,18 +751,40 @@ const cloneRouterRegionContent = (vdom) => {
     (level) => level.includes("router-region")
   );
   const priorityLevels = routerRegionLevel !== -1 ? allPriorityLevels.slice(routerRegionLevel + 1) : allPriorityLevels;
-  return priorityLevels.length > 0 ? cloneElement(vdom, {
+  return priorityLevels.length > 0 ? createElement(vdom.type, {
     ...vdom.props,
     priorityLevels
   }) : vdom.props.element;
 };
 const regionsToAttachByParent = /* @__PURE__ */ new WeakMap();
 const rootFragmentsByParent = /* @__PURE__ */ new WeakMap();
+const initialRegionsToAttach = /* @__PURE__ */ new Set();
+const isValidPageResponse = (response) => {
+  if (response.status !== 200) {
+    return false;
+  }
+  try {
+    if (new URL(response.url).origin !== window.location.origin) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes(",") || contentType.split(";")[0].trim().toLowerCase() !== "text/html") {
+    return false;
+  }
+  return true;
+};
 const fetchPage = async (url, { html }) => {
   try {
     if (!html) {
-      const res = await window.fetch(url);
-      if (res.status !== 200) {
+      const requestUrl = new URL(url, window.location.href);
+      if (requestUrl.origin !== window.location.origin) {
+        return false;
+      }
+      const res = await window.fetch(requestUrl.href);
+      if (!isValidPageResponse(res)) {
         return false;
       }
       html = await res.text();
@@ -775,8 +797,8 @@ const fetchPage = async (url, { html }) => {
 };
 const preparePage = async (url, dom, { vdom } = {}) => {
   dom.querySelectorAll("noscript").forEach((el) => el.remove());
-  const regions = {};
-  const regionsToAttach = {};
+  const regions = /* @__PURE__ */ Object.create(null);
+  const regionsToAttach = /* @__PURE__ */ Object.create(null);
   dom.querySelectorAll(regionsSelector).forEach((region) => {
     const { id, attachTo } = parseRegionAttribute(region);
     if (region.parentElement.closest(`[${regionAttr}]`)) {
@@ -784,7 +806,7 @@ const preparePage = async (url, dom, { vdom } = {}) => {
     } else {
       regions[id] = vdom?.has(region) ? vdom.get(region) : toVdom(region);
     }
-    if (attachTo) {
+    if (attachTo && !initialRegionsToAttach.has(id)) {
       regionsToAttach[id] = attachTo;
     }
   });
@@ -806,7 +828,10 @@ const preparePage = async (url, dom, { vdom } = {}) => {
 };
 const renderPage = (page) => {
   applyStyles(page.styles);
-  const regionsToAttach = { ...page.regionsToAttach };
+  const regionsToAttach = Object.assign(
+    /* @__PURE__ */ Object.create(null),
+    page.regionsToAttach
+  );
   batch(() => {
     populateServerData(page.initialData);
     navigationSignal.value += 1;
@@ -872,6 +897,12 @@ window.addEventListener("popstate", async () => {
     window.location.reload();
   }
 });
+document.querySelectorAll(regionsSelector).forEach((region) => {
+  const { id, attachTo } = parseRegionAttribute(region);
+  if (attachTo) {
+    initialRegionsToAttach.add(id);
+  }
+});
 window.document.querySelectorAll("script[type=module][src]").forEach(({ src }) => markScriptModuleAsResolved(src));
 pages.set(
   getPagePath(window.location.href),
@@ -915,6 +946,7 @@ const { state, actions } = (0,interactivity_namespaceObject.store)("core/router"
      * @return  Promise that resolves once the navigation is completed or aborted.
      */
     *navigate(href, options = {}) {
+      options = Object.assign(/* @__PURE__ */ Object.create(null), options);
       const { clientNavigationDisabled } = (0,interactivity_namespaceObject.getConfig)();
       if (clientNavigationDisabled) {
         yield forcePageReload(href);
@@ -987,6 +1019,7 @@ const { state, actions } = (0,interactivity_namespaceObject.store)("core/router"
      * @return  Promise that resolves once the page has been fetched.
      */
     *prefetch(url, options = {}) {
+      options = Object.assign(/* @__PURE__ */ Object.create(null), options);
       const { clientNavigationDisabled } = (0,interactivity_namespaceObject.getConfig)();
       if (clientNavigationDisabled) {
         return;
@@ -1005,12 +1038,12 @@ const { state, actions } = (0,interactivity_namespaceObject.store)("core/router"
 function a11ySpeak(messageKey) {
   if (!hasLoadedNavigationTextsData) {
     hasLoadedNavigationTextsData = true;
-    const content = document.getElementById(
-      "wp-script-module-data-@wordpress/interactivity-router"
-    )?.textContent;
-    if (content) {
+    const script = document.querySelector(
+      'script[id="wp-script-module-data-@wordpress/interactivity-router"]'
+    );
+    if (script instanceof HTMLScriptElement) {
       try {
-        const parsed = JSON.parse(content);
+        const parsed = JSON.parse(script.text);
         if (typeof parsed?.i18n?.loading === "string") {
           navigationTexts.loading = parsed.i18n.loading;
         }
