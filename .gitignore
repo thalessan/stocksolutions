@@ -1,0 +1,3 @@
+# graphify outputs (graphs are rebuildable; only commit what you intend to share)
+graphify-out/
+web/wp-content/graphify-out/
