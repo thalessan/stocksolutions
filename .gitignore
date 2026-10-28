@@ -6,3 +6,9 @@ web/wp-content/graphify-out/
 web/wp-content/uploads/fusion-scripts/
 web/wp-content/uploads/fusion-styles/
 web/wp-content/debug.log
+
+# credenciais e artefatos de runtime do WordPress
+web/wp-config.php
+web/wp-content/ai1wm-backups/
+web/wp-content/upgrade/
+web/wp-content/uploads/*.wpress
