@@ -12,3 +12,7 @@ web/wp-config.php
 web/wp-content/ai1wm-backups/
 web/wp-content/upgrade/
 web/wp-content/uploads/*.wpress
+
+# dumps de backup locais (fora do controle, exceto o dump canonico)
+docker/db/*.sql
+!docker/db/01-dump.sql
