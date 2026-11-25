@@ -1,7 +1,8 @@
-# Uso: PRD_SSH_PASS=... expect scripts/prd-run-php.expect <arquivo.php> <MARCADOR-FINAL>
+# Uso: PRD_SSH_PASS=... expect scripts/prd-run-php.expect <arquivo.php> <MARCADOR-FINAL> [args...]
 #
 # Envia um arquivo PHP para o PRD, executa com wp-cli (eval-file) e remove o
 # arquivo remoto. O marcador final deve ser ecoado pelo próprio PHP.
+# Argumentos extras são repassados ao PHP e chegam em $args.
 #
 # Variáveis de ambiente:
 #   PRD_SSH_PASS  (obrigatória) senha SSH
@@ -15,8 +16,9 @@
 set timeout 300
 set phpfile [lindex $argv 0]
 set marker  [lindex $argv 1]
+set extra   [lrange $argv 2 end]
 if {$phpfile eq "" || $marker eq ""} {
-  puts "uso: PRD_SSH_PASS=... expect prd-run-php.expect <arquivo.php> <MARCADOR>"
+  puts "uso: PRD_SSH_PASS=... expect prd-run-php.expect <arquivo.php> <MARCADOR> \[args...\]"
   exit 2
 }
 if {![info exists env(PRD_SSH_PASS)]} {
@@ -58,7 +60,8 @@ while {$tries < 4} {
   } else {
     set b64 [string trim [exec base64 -i $phpfile]]
     regsub -all {\n} $b64 {} b64
-    set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php wp-cli.phar eval-file prd-tmp.php --path=$wppath; rm -f prd-tmp.php"
+    set argstr [join $extra " "]
+    set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php wp-cli.phar eval-file prd-tmp.php $argstr --path=$wppath; rm -f prd-tmp.php"
     send "$cmd\r"
     if {[catch {
       expect {

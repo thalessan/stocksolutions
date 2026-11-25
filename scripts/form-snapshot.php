@@ -8,4 +8,5 @@ $meta    = get_post_meta( $id, '_fusion', true );
 echo 'MD5: ' . md5( $content ) . PHP_EOL;
 echo 'LEN: ' . strlen( $content ) . PHP_EOL;
 echo 'META: ' . wp_json_encode( $meta ) . PHP_EOL;
+echo 'NONCE: ' . wp_create_nonce( 'fusion_form_nonce' ) . PHP_EOL;
 echo 'SNAPSHOT-END' . PHP_EOL;

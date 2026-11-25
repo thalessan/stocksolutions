@@ -45,6 +45,12 @@ PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/check-submissions.php
 
 # teste de wp_mail (retorna bool(true)/erro)
 PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-test.php MAIL-TEST-END
+
+# impressão digital do post 141 (md5 do conteúdo + meta + nonce) para comparar local x PRD
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/form-snapshot.php SNAPSHOT-END
+
+# remover uma submissão de teste (os argumentos extras chegam em $args)
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/clean-test-submission.php CLEAN-END <submission_id>
 ```
 
 Observação: `wp db query` **não funciona** no PRD (wp-cli procura o binário
