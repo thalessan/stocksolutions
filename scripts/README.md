@@ -90,7 +90,13 @@ Configurado e validado em 2026-11-25:
 
 Resultado no mail-tester: **10/10** (texto) e **9,7/10** (formulário HTML),
 com `SPF pass` (`200.147.x`, via `include:spf.whservidor.com`) e
-`DKIM pass` (`s=pro`, chave de 1024 bits da UOL).
+`DKIM pass` (`s=pro`, chave de 1024 bits da UOL). Entrega confirmada pelo
+cliente em 2026-11-25.
+
+```bash
+# conferir o estado atual (host/porta/usuário/remetente/destinatário do form)
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-state.php STATE-END
+```
 
 Comandos:
 
