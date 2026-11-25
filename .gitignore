@@ -19,3 +19,6 @@ web/wp-content/uploads/*.wpress
 # dumps de backup locais (fora do controle, exceto o dump canonico)
 docker/db/*.sql
 !docker/db/01-dump.sql
+
+# area de testes local
+.scratch/

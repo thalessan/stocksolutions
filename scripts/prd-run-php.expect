@@ -61,7 +61,15 @@ while {$tries < 4} {
     set b64 [string trim [exec base64 -i $phpfile]]
     regsub -all {\n} $b64 {} b64
     set argstr [join $extra " "]
-    set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php wp-cli.phar eval-file prd-tmp.php $argstr --path=$wppath; rm -f prd-tmp.php"
+
+    # PRD_RUN=php executa o arquivo direto com o PHP do servidor (sem WordPress),
+    # necessario para scripts que editam o proprio wp-config.php.
+    if {[info exists env(PRD_RUN)] && $env(PRD_RUN) eq "php"} {
+      set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php prd-tmp.php $argstr; rm -f prd-tmp.php"
+    } else {
+      set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php wp-cli.phar eval-file prd-tmp.php $argstr --path=$wppath; rm -f prd-tmp.php"
+    }
+
     send "$cmd\r"
     if {[catch {
       expect {

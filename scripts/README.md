@@ -87,6 +87,36 @@ Diagnóstico:
 PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-diagnostics.php DIAG-END
 ```
 
+### Configurar SMTP no PRD
+
+`scripts/set-smtp.php` grava o bloco de constantes no `wp-config.php` de forma
+idempotente, com backup `.bak-<data>` e validação de sintaxe (`php -l`) antes de
+substituir o arquivo. Roda com PHP puro (não via wp-cli):
+
+```bash
+PRD_RUN=php PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/set-smtp.php SMTP-CONFIG-END \
+  stocksolutions.com.br/web/wp-config.php \
+  smtp-relay.brevo.com 587 <login> <chave-smtp> tls
+```
+
+Depois, um teste real:
+
+```bash
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-diagnostics.php DIAG-END
+```
+
+Para remover o SMTP, rodar o mesmo comando com host vazio não é suportado:
+apague o bloco entre `// BEGIN StockSolutions SMTP` e `// END StockSolutions SMTP`
+(ou restaure o `.bak-<data>`).
+
+### Conectividade de saída (UOL)
+
+```bash
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/test-smtp-ports.php PORTS-END
+```
+
+Resultado medido: 587 liberado (Brevo/SendGrid), 2525 bloqueado, 465 e 443 liberados.
+
 ## Máscara de telefone
 
 O Avada Forms não tem máscara nativa (só o atributo `pattern`, que não formata).
