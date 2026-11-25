@@ -87,6 +87,7 @@ Configurado e validado em 2026-11-25:
 | usuário | `site@stocksolutions.com.br` |
 | remetente | `site@stocksolutions.com.br` (mesmo usuário autenticado) |
 | Reply-To | e-mail do visitante (`[your_email]`) |
+| Destinatário do formulário | `contato@stocksolutions.com.br` (alias que redireciona para outra caixa) |
 
 Resultado no mail-tester: **10/10** (texto) e **9,7/10** (formulário HTML),
 com `SPF pass` (`200.147.x`, via `include:spf.whservidor.com`) e
@@ -110,8 +111,11 @@ PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/verify-mail.php VERIF
 ```
 
 Notas: a caixa `site@` ficou inativa por um período — enquanto isso o AUTH
-retornava `535` e o IMAP `[AUTHENTICATIONFAILED]`. A caixa `contato@` ainda não
-autentica (não existe ou tem outra senha).
+retornava `535` e o IMAP `[AUTHENTICATIONFAILED]`. `contato@stocksolutions.com.br`
+**não é uma caixa**: é um alias que redireciona para outra caixa, por isso nunca
+autenticou (e não deve autenticar). O SMTP aceita o destinatário (`250 2.1.5 Ok`)
+e, em caso de falha no destino, o bounce volta para `site@` (monitorado: zero
+bounces após os testes).
 
 ### Pendências de autenticação (DNS)
 
