@@ -76,29 +76,45 @@ corrige From/envelope/Message-ID e ativa SMTP quando as constantes existem.
 DKIM do domínio já está configurado na UOL: `pro._domainkey` (CNAME para
 `pro._domainkey.uhserver.com`) e SPF `include:spf.whservidor.com ?all`.
 
-### Opção A — SMTP da própria UOL
+### Opção A — SMTP da própria UOL (EM USO)
 
-Credenciais fornecidas para `site@stocksolutions.com.br` (SMTP `smtps.uhserver.com:465`
-SSL, IMAP `imap.uhserver.com:993` SSL) foram testadas e **recusadas pelos dois
-servidores** (`535 authentication failed` / `[AUTHENTICATIONFAILED]`), então a
-senha precisa ser conferida/rotacionada no painel de e-mail da UOL.
+Configurado e validado em 2026-11-25:
 
-Quando a credencial funcionar:
+| Item | Valor |
+|---|---|
+| host | `smtps.uhserver.com` |
+| porta / segurança | `465` / SSL |
+| usuário | `site@stocksolutions.com.br` |
+| remetente | `site@stocksolutions.com.br` (mesmo usuário autenticado) |
+| Reply-To | e-mail do visitante (`[your_email]`) |
+
+Resultado no mail-tester: **10/10** (texto) e **9,7/10** (formulário HTML),
+com `SPF pass` (`200.147.x`, via `include:spf.whservidor.com`) e
+`DKIM pass` (`s=pro`, chave de 1024 bits da UOL).
+
+Comandos:
 
 ```bash
+# aplicar / atualizar
 PRD_RUN=php PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/set-smtp.php SMTP-CONFIG-END \
   stocksolutions.com.br/web/wp-config.php smtps.uhserver.com 465 site@stocksolutions.com.br '<senha>' ssl
+
+# conferir qual transporte o PHPMailer usou + disparar teste
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/verify-mail.php VERIFY-END destino@exemplo.com 'Assunto'
 ```
 
-Testes de credencial (não gravam nada):
+Notas: a caixa `site@` ficou inativa por um período — enquanto isso o AUTH
+retornava `535` e o IMAP `[AUTHENTICATIONFAILED]`. A caixa `contato@` ainda não
+autentica (não existe ou tem outra senha).
 
-```bash
-PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/smtp-auth-test.php AUTH-END \
-  smtps.uhserver.com 465 site@stocksolutions.com.br '<senha>' ssl
+### Pendências de autenticação (DNS)
 
-PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/imap-login-test.php IMAP-END \
-  imap.uhserver.com 993 site@stocksolutions.com.br '<senha>'
-```
+- **DMARC ausente**: criar `_dmarc.stocksolutions.com.br` TXT. O mail-tester
+  sugere `v=DMARC1; p=reject`, mas com `p=none` primeiro é mais seguro para
+  monitorar.
+- PTR do relay (`a2-smithers*.uhserver.com`) não casa com o HELO
+  (`smtp.uhserver.com`) — fora do nosso controle (infra da UOL), impacto baixo.
+- DKIM usa chave de 1024 bits; a UOL pode oferecer 2048 no painel.
 
 ### Opção B — relay transacional (Brevo)
 

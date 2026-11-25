@@ -24,14 +24,21 @@ function stck_mail_domain() {
 
 /**
  * Endereço de envio padrão.
+ *
+ * Usa a caixa autenticada no SMTP (site@). Enviar com um From diferente do
+ * usuário autenticado costuma ser recusado pelo relay da UOL.
  */
 function stck_mail_from() {
+	$default = defined( 'STCK_MAIL_FROM' ) && is_email( STCK_MAIL_FROM )
+		? STCK_MAIL_FROM
+		: 'site@' . stck_mail_domain();
+
 	/**
 	 * Permite trocar o remetente sem editar o plugin.
 	 *
 	 * @param string $email Endereço de e-mail.
 	 */
-	return apply_filters( 'stck_mail_from', 'contato@' . stck_mail_domain() );
+	return apply_filters( 'stck_mail_from', $default );
 }
 
 add_filter(
