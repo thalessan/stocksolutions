@@ -13,7 +13,8 @@ $pairs   = [
 	'label="Your Email:"'                                                  => 'label="Seu e-mail:"',
 	'label="Your Message:"'                                                => 'label="Sua mensagem:"',
 	'label="Telephone:"'                                                   => 'label="Telefone:"',
-	'name="telephone" required="no" /]'                                    => 'name="telephone" required="no" placeholder="(11) 91234-5678" /]',
+	// Placeholder era confundido com valor preenchido: o campo deve vir vazio.
+	' placeholder="(11) 91234-5678"'                                       => '',
 	'success="Thank you for your message. It has been sent."'              => 'success="Obrigado! Sua mensagem foi enviada."',
 	'error="There was an error trying to send your message. Please try again later."' => 'error="Ocorreu um erro ao enviar sua mensagem. Por favor, tente novamente mais tarde."',
 	'Submit Your Quote Request'                                            => 'Enviar Solicitação',
