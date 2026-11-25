@@ -7,6 +7,11 @@
  */
 $ID      = 141;
 $content = get_post_field( 'post_content', $ID );
+
+// Destinatário: argumento opcional (wp eval-file script.php email@dominio), com
+// fallback para o Gmail enquanto a entrega no domínio não está validada.
+$recipient = isset( $args[0] ) && is_email( $args[0] ) ? $args[0] : 'thalesgomessan@gmail.com';
+
 $pairs   = [
 	'label="First Name:"'                                                  => 'label="Nome:"',
 	'label="Surname:"'                                                     => 'label="Sobrenome:"',
@@ -32,7 +37,7 @@ if ( ! is_array( $meta ) ) {
 	$meta = [];
 }
 $meta['form_actions']   = [ 'database', 'email' ];
-$meta['email']          = 'contato@stocksolutions.com.br';
+$meta['email']          = $recipient;
 $meta['email_from']     = 'StockSolutions';
 $meta['email_subject']  = 'Contato pelo site - StockSolutions';
 $meta['email_reply_to'] = '[your_email]';
