@@ -1,0 +1,82 @@
+# Uso: PRD_SSH_PASS=... expect scripts/prd-run-php.expect <arquivo.php> <MARCADOR-FINAL>
+#
+# Envia um arquivo PHP para o PRD, executa com wp-cli (eval-file) e remove o
+# arquivo remoto. O marcador final deve ser ecoado pelo próprio PHP.
+#
+# Variáveis de ambiente:
+#   PRD_SSH_PASS  (obrigatória) senha SSH
+#   PRD_SSH_HOST  (opcional)    default: ssh.uhserver.com
+#   PRD_SSH_USER  (opcional)    default: stocksolut2
+#   PRD_WP_PATH   (opcional)    default: stocksolutions.com.br/web
+#
+# O gateway SSH da UOL derruba conexões em sequência (fail2ban): o script
+# tenta até 4 vezes com espera de 55s entre tentativas.
+
+set timeout 300
+set phpfile [lindex $argv 0]
+set marker  [lindex $argv 1]
+if {$phpfile eq "" || $marker eq ""} {
+  puts "uso: PRD_SSH_PASS=... expect prd-run-php.expect <arquivo.php> <MARCADOR>"
+  exit 2
+}
+if {![info exists env(PRD_SSH_PASS)]} {
+  puts "defina PRD_SSH_PASS no ambiente"
+  exit 2
+}
+
+set host   [expr {[info exists env(PRD_SSH_HOST)] ? $env(PRD_SSH_HOST) : "ssh.uhserver.com"}]
+set user   [expr {[info exists env(PRD_SSH_USER)] ? $env(PRD_SSH_USER) : "stocksolut2"}]
+set pass   $env(PRD_SSH_PASS)
+set wppath [expr {[info exists env(PRD_WP_PATH)] ? $env(PRD_WP_PATH) : "stocksolutions.com.br/web"}]
+
+set tries 0
+set done 0
+
+while {$tries < 4} {
+  incr tries
+  if {$tries > 1} { sleep 55 }
+  puts "\n### tentativa $tries ###"
+  if {[catch {
+    spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -l $user $host
+    expect {
+      -timeout 60
+      "password:" { send "$pass\r" }
+      eof { error "closed pre-auth" }
+      timeout { error "timeout pre-auth" }
+    }
+    expect {
+      -timeout 60
+      -re {\]\$ } {}
+      "Connection closed" { error "closed post-auth" }
+      "Permission denied" { error "denied" }
+      eof { error "closed" }
+      timeout { error "no shell" }
+    }
+  } err]} {
+    puts "falha login ($err)"
+    catch { expect eof }
+  } else {
+    set b64 [string trim [exec base64 -i $phpfile]]
+    regsub -all {\n} $b64 {} b64
+    set cmd "cd ~ && echo $b64 | php -r 'file_put_contents(\"prd-tmp.php\", base64_decode(stream_get_contents(STDIN)));' && php wp-cli.phar eval-file prd-tmp.php --path=$wppath; rm -f prd-tmp.php"
+    send "$cmd\r"
+    if {[catch {
+      expect {
+        -timeout 180
+        -re $marker {}
+        timeout { error "timeout $marker" }
+        eof { error "closed $marker" }
+      }
+    } e2]} {
+      puts "falha ($e2)"
+      catch { expect eof }
+    } else {
+      send "exit\r"
+      catch { expect eof }
+      puts "CONCLUIDO"
+      set done 1
+      break
+    }
+  }
+}
+if {$done} { puts "RESULTADO: OK" } else { puts "RESULTADO: FALHOU" }
