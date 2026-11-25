@@ -57,6 +57,36 @@ Observação: `wp db query` **não funciona** no PRD (wp-cli procura o binário
 `mariadb`, que não existe na conta); por isso as consultas usam `$wpdb` via
 `wp eval-file`.
 
+## E-mail (mu-plugin `stck-mail.php`)
+
+O transporte nativo da UOL estava quebrado para os filtros de spam:
+
+| Problema | Efeito |
+|---|---|
+| hostname `b:u:stocksolut2:1` | `Message-ID: <@localhost.localdomain>` |
+| sem envelope sender | `Return-Path` com usuário do sistema |
+| From `wordpress@dominio` | remetente genérico, sem alinhamento |
+| IP de saída sem PTR e fora do SPF | SPF `neutral`, sem rDNS |
+
+O mu-plugin corrige From/envelope/Message-ID sempre. Para usar SMTP autenticado
+(caminho confiável), definir no `web/wp-config.php` **do PRD**:
+
+```php
+define( 'STCK_SMTP_HOST', 'smtp.uhserver.com' );
+define( 'STCK_SMTP_PORT', 587 );
+define( 'STCK_SMTP_USER', 'contato@stocksolutions.com.br' );
+define( 'STCK_SMTP_PASS', '...' );
+define( 'STCK_SMTP_SECURE', '' ); // a porta 587 da UOL não oferece STARTTLS
+```
+
+Sem essas constantes o plugin não intervém no transporte (só nos cabeçalhos).
+
+Diagnóstico:
+
+```bash
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-diagnostics.php DIAG-END
+```
+
 ## Máscara de telefone
 
 O Avada Forms não tem máscara nativa (só o atributo `pattern`, que não formata).
