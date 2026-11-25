@@ -1,0 +1,79 @@
+# Uso: PRD_SSH_PASS=... expect scripts/prd-put-file.expect <local> <remoto> [<local> <remoto> ...]
+#
+# Envia um ou mais arquivos para o PRD por base64 (o `base64` do servidor está
+# bloqueado; a decodificação é feita pelo PHP). Cria o diretório de destino.
+#
+# Variáveis de ambiente: PRD_SSH_PASS (obrigatória), PRD_SSH_HOST, PRD_SSH_USER.
+
+set timeout 300
+set pairs $argv
+if {[llength $pairs] < 2 || [llength $pairs] % 2 != 0} {
+  puts "uso: PRD_SSH_PASS=... expect prd-put-file.expect <local> <remoto> \[<local> <remoto> ...\]"
+  exit 2
+}
+if {![info exists env(PRD_SSH_PASS)]} {
+  puts "defina PRD_SSH_PASS no ambiente"
+  exit 2
+}
+
+set host [expr {[info exists env(PRD_SSH_HOST)] ? $env(PRD_SSH_HOST) : "ssh.uhserver.com"}]
+set user [expr {[info exists env(PRD_SSH_USER)] ? $env(PRD_SSH_USER) : "stocksolut2"}]
+set pass $env(PRD_SSH_PASS)
+
+set tries 0
+set done 0
+
+while {$tries < 4} {
+  incr tries
+  if {$tries > 1} { sleep 55 }
+  puts "\n### tentativa $tries ###"
+  if {[catch {
+    spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -l $user $host
+    expect {
+      -timeout 60
+      "password:" { send "$pass\r" }
+      eof { error "closed pre-auth" }
+      timeout { error "timeout pre-auth" }
+    }
+    expect {
+      -timeout 60
+      -re {\]\$ } {}
+      "Connection closed" { error "closed post-auth" }
+      "Permission denied" { error "denied" }
+      eof { error "closed" }
+      timeout { error "no shell" }
+    }
+  } err]} {
+    puts "falha login ($err)"
+    catch { expect eof }
+  } else {
+    set ok 1
+    foreach {localfile remotepath} $pairs {
+      set dir [file dirname $remotepath]
+      set b64 [string trim [exec base64 -i $localfile]]
+      regsub -all {\n} $b64 {} b64
+      send "cd ~ && mkdir -p $dir && echo $b64 | php -r 'file_put_contents(\"$remotepath\", base64_decode(stream_get_contents(STDIN)));' && md5sum $remotepath && echo PUT-DONE\r"
+      if {[catch {
+        expect {
+          -timeout 180
+          -re {PUT-DONE} {}
+          timeout { error "timeout PUT-DONE" }
+          eof { error "closed PUT-DONE" }
+        }
+      } e2]} {
+        puts "falha ($e2)"
+        catch { expect eof }
+        set ok 0
+        break
+      }
+    }
+    if {$ok} {
+      send "exit\r"
+      catch { expect eof }
+      puts "CONCLUIDO"
+      set done 1
+    }
+    break
+  }
+}
+if {$done} { puts "RESULTADO: OK" } else { puts "RESULTADO: FALHOU" }

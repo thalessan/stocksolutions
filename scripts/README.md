@@ -51,6 +51,36 @@ Observação: `wp db query` **não funciona** no PRD (wp-cli procura o binário
 `mariadb`, que não existe na conta); por isso as consultas usam `$wpdb` via
 `wp eval-file`.
 
+## Máscara de telefone
+
+O Avada Forms não tem máscara nativa (só o atributo `pattern`, que não formata).
+A máscara é feita por um mu-plugin, que fica no repo e não depende de opção no
+banco:
+
+- `web/wp-content/mu-plugins/stck-form-mask.php` — enfileira o JS no front-end.
+- `web/wp-content/mu-plugins/stck-form-mask.js` — formata `input[type="tel"]`
+  dentro de `.fusion-form` enquanto o usuário digita:
+  - 10 dígitos → `(XX) XXXX-XXXX` (fixo)
+  - 11 dígitos → `(XX) XXXXX-XXXX` (celular)
+  - aceita colagem com `+55` e descarta o que não for dígito;
+  - preserva a posição do cursor; backspace sobre `-`/espaço apaga o dígito anterior.
+
+Teste da lógica (usa o arquivo real, sem dependências):
+
+```bash
+node scripts/test-form-mask.js
+```
+
+Deploy:
+
+```bash
+PRD_SSH_PASS=... expect scripts/prd-put-file.expect \
+  web/wp-content/mu-plugins/stck-form-mask.php \
+  stocksolutions.com.br/web/wp-content/mu-plugins/stck-form-mask.php \
+  web/wp-content/mu-plugins/stck-form-mask.js \
+  stocksolutions.com.br/web/wp-content/mu-plugins/stck-form-mask.js
+```
+
 ## `prd-run-php.expect`
 
 Runner genérico: envia um arquivo PHP por base64, executa com
