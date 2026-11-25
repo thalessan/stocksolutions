@@ -117,14 +117,21 @@ autenticou (e não deve autenticar). O SMTP aceita o destinatário (`250 2.1.5 O
 e, em caso de falha no destino, o bounce volta para `site@` (monitorado: zero
 bounces após os testes).
 
-### Pendências de autenticação (DNS)
+### Autenticação de DNS (estado em 2026-11-25)
 
-- **DMARC ausente**: criar `_dmarc.stocksolutions.com.br` TXT. O mail-tester
-  sugere `v=DMARC1; p=reject`, mas com `p=none` primeiro é mais seguro para
-  monitorar.
-- PTR do relay (`a2-smithers*.uhserver.com`) não casa com o HELO
-  (`smtp.uhserver.com`) — fora do nosso controle (infra da UOL), impacto baixo.
-- DKIM usa chave de 1024 bits; a UOL pode oferecer 2048 no painel.
+| Registro | Estado |
+|---|---|
+| SPF | ✅ `v=spf1 include:spf.whservidor.com ?all` → `pass` (relay `200.147.x`) |
+| DKIM | ✅ `pro._domainkey` (CNAME → UOL), `s=pro`, `pass` |
+| DMARC | ✅ `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:site@stocksolutions.com.br` → `dmarc=pass` |
+| PTR do relay | ⚠️ `a2-smithers*.uhserver.com` ≠ HELO `smtp.uhserver.com` (infra da UOL, impacto baixo) |
+| Chave DKIM | ⚠️ 1024 bits (a UOL pode emitir 2048 no painel) |
+
+Laudo após o DMARC: **9,8/10** (o desconto é por o teste técnico ser só texto;
+o e-mail real do formulário é HTML).
+
+Próximo passo recomendado, depois de alguns dias de relatórios `rua`: endurecer a
+política para `p=quarantine` e, por fim, `p=reject`.
 
 ### Opção B — relay transacional (Brevo)
 
