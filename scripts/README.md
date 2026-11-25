@@ -59,63 +59,54 @@ Observação: `wp db query` **não funciona** no PRD (wp-cli procura o binário
 
 ## E-mail (mu-plugin `stck-mail.php`)
 
-O transporte nativo da UOL estava quebrado para os filtros de spam:
+O transporte nativo da UOL **não entrega e-mail para fora**:
 
-| Problema | Efeito |
+| Evidência | Detalhe |
 |---|---|
-| hostname `b:u:stocksolut2:1` | `Message-ID: <@localhost.localdomain>` |
-| sem envelope sender | `Return-Path` com usuário do sistema |
-| From `wordpress@dominio` | remetente genérico, sem alinhamento |
-| IP de saída sem PTR e fora do SPF | SPF `neutral`, sem rDNS |
+| `sendmail_path` | `/usr/local/sbin/wrapper-mail -t -i` |
+| wrapper | script Python que envia para `127.0.0.1:25` e engole o erro (`/tmp/sendmail.log` só registra "Sending") |
+| `127.0.0.1:25` | **proxy** `Python SMTP proxy version 0.2` — responde `250 Ok` para tudo, sem MTA real |
+| porta 25 de saída | **bloqueada** (Gmail e MX da UOL dão timeout) |
+| relay autenticado UOL | `smtp.uhserver.com:587` recusa o IP da hospedagem: `554 5.7.1 Client host rejected: Access denied` |
+| cabeçalhos | hostname `b:u:<conta>:1` gerava `Message-ID: <@localhost.localdomain>` |
 
-O mu-plugin corrige From/envelope/Message-ID sempre. Para usar SMTP autenticado
-(caminho confiável), definir no `web/wp-config.php` **do PRD**:
+Conclusão: é preciso **SMTP autenticado** (porta 587, que funciona). O mu-plugin
+corrige From/envelope/Message-ID e ativa SMTP quando as constantes existem.
 
-```php
-define( 'STCK_SMTP_HOST', 'smtp.uhserver.com' );
-define( 'STCK_SMTP_PORT', 587 );
-define( 'STCK_SMTP_USER', 'contato@stocksolutions.com.br' );
-define( 'STCK_SMTP_PASS', '...' );
-define( 'STCK_SMTP_SECURE', '' ); // a porta 587 da UOL não oferece STARTTLS
-```
+DKIM do domínio já está configurado na UOL: `pro._domainkey` (CNAME para
+`pro._domainkey.uhserver.com`) e SPF `include:spf.whservidor.com ?all`.
 
-Sem essas constantes o plugin não intervém no transporte (só nos cabeçalhos).
+### Opção A — SMTP da própria UOL
 
-Diagnóstico:
-
-```bash
-PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-diagnostics.php DIAG-END
-```
-
-### Configurar SMTP no PRD
-
-`scripts/set-smtp.php` grava o bloco de constantes no `wp-config.php` de forma
-idempotente, com backup `.bak-<data>` e validação de sintaxe (`php -l`) antes de
-substituir o arquivo. Roda com PHP puro (não via wp-cli):
+Precisa apenas da senha da caixa `contato@stocksolutions.com.br`:
 
 ```bash
 PRD_RUN=php PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/set-smtp.php SMTP-CONFIG-END \
-  stocksolutions.com.br/web/wp-config.php \
-  smtp-relay.brevo.com 587 <login> <chave-smtp> tls
+  stocksolutions.com.br/web/wp-config.php smtp.uhserver.com 587 contato@stocksolutions.com.br '<senha>' ''
 ```
 
-Depois, um teste real:
+A porta 587 da UOL **não oferece STARTTLS** (autenticação em texto claro).
+
+### Opção B — relay transacional (Brevo)
 
 ```bash
-PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-diagnostics.php DIAG-END
+PRD_RUN=php PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/set-smtp.php SMTP-CONFIG-END \
+  stocksolutions.com.br/web/wp-config.php smtp-relay.brevo.com 587 '<login>' '<smtp-key>' tls
 ```
 
-Para remover o SMTP, rodar o mesmo comando com host vazio não é suportado:
-apague o bloco entre `// BEGIN StockSolutions SMTP` e `// END StockSolutions SMTP`
-(ou restaure o `.bak-<data>`).
+Exige autenticar o domínio no Brevo (registros DNS no painel da UOL).
 
-### Conectividade de saída (UOL)
+Outros comandos de diagnóstico:
 
 ```bash
+# conectividade de saída (587/465/443 liberados, 2525 e 25 bloqueados)
 PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/test-smtp-ports.php PORTS-END
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/test-port25.php PORT25-END
+
+# teste de wp_mail (retorna bool(true)/erro)
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/mail-test.php MAIL-TEST-END
 ```
 
-Resultado medido: 587 liberado (Brevo/SendGrid), 2525 bloqueado, 465 e 443 liberados.
 
 ## Máscara de telefone
 
