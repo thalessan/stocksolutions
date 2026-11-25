@@ -78,14 +78,27 @@ DKIM do domínio já está configurado na UOL: `pro._domainkey` (CNAME para
 
 ### Opção A — SMTP da própria UOL
 
-Precisa apenas da senha da caixa `contato@stocksolutions.com.br`:
+Credenciais fornecidas para `site@stocksolutions.com.br` (SMTP `smtps.uhserver.com:465`
+SSL, IMAP `imap.uhserver.com:993` SSL) foram testadas e **recusadas pelos dois
+servidores** (`535 authentication failed` / `[AUTHENTICATIONFAILED]`), então a
+senha precisa ser conferida/rotacionada no painel de e-mail da UOL.
+
+Quando a credencial funcionar:
 
 ```bash
 PRD_RUN=php PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/set-smtp.php SMTP-CONFIG-END \
-  stocksolutions.com.br/web/wp-config.php smtp.uhserver.com 587 contato@stocksolutions.com.br '<senha>' ''
+  stocksolutions.com.br/web/wp-config.php smtps.uhserver.com 465 site@stocksolutions.com.br '<senha>' ssl
 ```
 
-A porta 587 da UOL **não oferece STARTTLS** (autenticação em texto claro).
+Testes de credencial (não gravam nada):
+
+```bash
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/smtp-auth-test.php AUTH-END \
+  smtps.uhserver.com 465 site@stocksolutions.com.br '<senha>' ssl
+
+PRD_SSH_PASS=... expect scripts/prd-run-php.expect scripts/imap-login-test.php IMAP-END \
+  imap.uhserver.com 993 site@stocksolutions.com.br '<senha>'
+```
 
 ### Opção B — relay transacional (Brevo)
 
