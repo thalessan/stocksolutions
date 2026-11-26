@@ -123,15 +123,22 @@ bounces após os testes).
 |---|---|
 | SPF | ✅ `v=spf1 include:spf.whservidor.com ?all` → `pass` (relay `200.147.x`) |
 | DKIM | ✅ `pro._domainkey` (CNAME → UOL), `s=pro`, `pass` |
-| DMARC | ✅ `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:site@stocksolutions.com.br` → `dmarc=pass` |
+| DMARC | ✅ `_dmarc` TXT `v=DMARC1; p=reject` (relatórios `rua` removidos) → `dmarc=pass` |
 | PTR do relay | ⚠️ `a2-smithers*.uhserver.com` ≠ HELO `smtp.uhserver.com` (infra da UOL, impacto baixo) |
 | Chave DKIM | ⚠️ 1024 bits (a UOL pode emitir 2048 no painel) |
 
 Laudo após o DMARC: **9,8/10** (o desconto é por o teste técnico ser só texto;
 o e-mail real do formulário é HTML).
 
-Próximo passo recomendado, depois de alguns dias de relatórios `rua`: endurecer a
-política para `p=quarantine` e, por fim, `p=reject`.
+**Política final adotada em 2026-11-26:** `p=reject` sem `rua`, ou seja,
+relatórios agregados desativados. SPF e DKIM continuam passando (o `From` é a
+caixa autenticada `site@`), então o envio do formulário não é afetado.
+
+Rollback, se algum remetente legítimo quebrar: editar o TXT `_dmarc` para
+`v=DMARC1; p=none` (ou `p=quarantine`) — vale após o TTL (1800s).
+
+> Cuidado: dois registros TXT em `_dmarc` invalidam a política. Verifique com
+> `dig TXT _dmarc.stocksolutions.com.br +short` (deve retornar uma linha).
 
 ### Opção B — relay transacional (Brevo)
 
